@@ -15,16 +15,16 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------
-# 2. 환경변수 검증
+# 2. 환경변수 검증 (TELEGRAM_BOT_TOKEN / TELEGRAM_TOKEN 둘 다 호환)
 # ---------------------------------------------------------
-TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN")
+TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN") or os.environ.get("TELEGRAM_TOKEN")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID")
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
 
 def validate_env_vars():
     missing = []
     if not TELEGRAM_BOT_TOKEN:
-        missing.append("TELEGRAM_BOT_TOKEN")
+        missing.append("TELEGRAM_BOT_TOKEN (또는 TELEGRAM_TOKEN)")
     if not TELEGRAM_CHAT_ID:
         missing.append("TELEGRAM_CHAT_ID")
     if not GEMINI_API_KEY:
@@ -41,7 +41,7 @@ def validate_env_vars():
 RSS_SOURCES = {
     "AI 최신 모델 및 동향": "https://news.google.com/rss/search?q=AI+%EB%AA%A8%EB%8D%B8+%EC%B5%9C%EC%8B%A0&hl=ko&gl=KR&ceid=KR:ko",
     "데이터 사이언스": "https://news.google.com/rss/search?q=%EB%8D%B0%EC%9D%B4%ED%84%B0%EC%82%AC%EC%9D%B4%EC%96%B8%EC%8A%A4&hl=ko&gl=KR&ceid=KR:ko",
-    "주식시장 전망": "https://news.google.com/rss/search?q=%EC%A3%BC%EC%8B%9D%EC%8B%9C%EC%9E%A5+%EC%A0%84%EB%A1%9D+OR+%EC%A3%BC%EC%8B%9D%EC%8B%9C%EC%9E%A5+%EC%A0%84%EB%A1%9D&hl=ko&gl=KR&ceid=KR:ko",
+    "주식시장 전망": "https://news.google.com/rss/search?q=%EC%A3%BC%EC%8B%9D%EC%8B%9C%EC%9E%A5+%EC%A0%84%EB%A1%9D&hl=ko&gl=KR&ceid=KR:ko",
     "한미반도체/대덕전자 및 이슈 종목": "https://news.google.com/rss/search?q=%ED%95%9C%EB%AF%B8%EB%B0%98%EB%8F%84%EC%B2%B4+OR+%EB%8C%80%EB%8D%95%EC%A0%84%EC%9E%90&hl=ko&gl=KR&ceid=KR:ko"
 }
 
@@ -80,7 +80,6 @@ def generate_summary_with_gemini(raw_news):
     if not raw_news:
         return "<b>[알림]</b> 오늘 수집된 신규 뉴스가 없습니다."
 
-    # 프롬프트 생성
     news_text_list = []
     for idx, item in enumerate(raw_news, 1):
         news_text_list.append(f"{idx}. [{item['category']}] {item['title']}\n   링크: {item['link']}")
@@ -111,13 +110,8 @@ HTML 태그 문법 오류가 없도록 닫는 태그를 정확히 작성해주�
 
     gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
     payload = {
-        "contents": [{
-            "parts": [{"text": prompt}]
-        }],
-        "generationConfig": {
-            "temperature": 0.3,
-            "maxOutputTokens": 2540
-        }
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 2540}
     }
 
     try:
@@ -128,8 +122,7 @@ HTML 태그 문법 오류가 없도록 닫는 태그를 정확히 작성해주�
         
         candidates = data.get("candidates", [])
         if candidates:
-            output_text = candidates[0]["content"]["parts"][0]["text"]
-            return output_text
+            return candidates[0]["content"]["parts"][0]["text"]
         else:
             logger.warning("Gemini 응답에 내용이 없습니다.")
             return build_fallback_summary(raw_news)
@@ -141,7 +134,7 @@ def build_fallback_summary(raw_news):
     """Gemini API 실패 시 원본 뉴스 리스트 기반 기본 메시지 생성"""
     lines = ["<b>📌 오늘의 주요 뉴스 브리핑 (기본 요약)</b>\n"]
     for item in raw_news[:8]:
-        lines.append(f"• <b>[{item['category']}]</b> {item['title']}\n  <a href=\"{item['link']}\">▶ 뉴스 보기</a>")
+        lines.append(f"• <b>[{item['category']}]</b> {item['title']}\n  <a href=\"{item['link']}\">▶ 원본 뉴스 보기</a>")
     return "\n\n".join(lines)
 
 # ---------------------------------------------------------
@@ -150,7 +143,6 @@ def build_fallback_summary(raw_news):
 def send_telegram_message(text):
     telegram_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     
-    # 텔레그램 메시지 최대 길이(4096자) 대응을 위한 분할 전송
     CHUNK_SIZE = 4000
     chunks = [text[i:i+CHUNK_SIZE] for i in range(0, len(text), CHUNK_SIZE)]
 
@@ -166,7 +158,6 @@ def send_telegram_message(text):
             logger.info(f"텔레그램 메시지 전송 중 ({idx+1}/{len(chunks)})...")
             res = requests.post(telegram_url, json=payload, timeout=10)
             
-            # HTML 태그 오류 발생 시 Plain Text로 재전송 시도
             if not res.ok and "can't parse entities" in res.text:
                 logger.warning("HTML 파싱 에러 발생. Plain Text로 재전송합니다.")
                 payload["parse_mode"] = None
@@ -184,19 +175,12 @@ def send_telegram_message(text):
 def main():
     logger.info("=== 텔레그램 일일 뉴스 서비스 실행 시작 ===")
     try:
-        # 1. 환경변수 확인
         validate_env_vars()
-
-        # 2. RSS 뉴스 수집
         raw_news = fetch_rss_news()
         logger.info(f"수집된 총 뉴스 개수: {len(raw_news)}개")
 
-        # 3. Gemini 요약 및 인사이트 생성
         summary_report = generate_summary_with_gemini(raw_news)
-
-        # 4. 텔레그램 메시지 발송
         send_telegram_message(summary_report)
-        
         logger.info("=== 텔레그램 일일 뉴스 서비스 성공적 완료 ===")
 
     except Exception as e:
