@@ -36,13 +36,12 @@ def validate_env_vars():
         raise ValueError(err_msg)
 
 # ---------------------------------------------------------
-# 3. RSS 피드 수집 (requests 활용)
+# 3. RSS 피드 수집 (카테고리 및 세부 주제별 수집)
 # ---------------------------------------------------------
 RSS_SOURCES = {
-    "AI 최신 모델 및 동향": "https://news.google.com/rss/search?q=AI+%EB%AA%A8%EB%8D%B8+%EC%B5%9C%EC%8B%A0&hl=ko&gl=KR&ceid=KR:ko",
-    "데이터 사이언스": "https://news.google.com/rss/search?q=%EB%8D%B0%EC%9D%B4%ED%84%B0%EC%82%AC%EC%9D%B4%EC%96%B8%EC%8A%A4&hl=ko&gl=KR&ceid=KR:ko",
-    "주식시장 전망": "https://news.google.com/rss/search?q=%EC%A3%BC%EC%8B%9D%EC%8B%9C%EC%9E%A5+%EC%A0%84%EB%A1%9D&hl=ko&gl=KR&ceid=KR:ko",
-    "한미반도체/대덕전자 및 이슈 종목": "https://news.google.com/rss/search?q=%ED%95%9C%EB%AF%B8%EB%B0%98%EB%8F%84%EC%B2%B4+OR+%EB%8C%80%EB%8D%95%EC%A0%84%EC%9E%90&hl=ko&gl=KR&ceid=KR:ko"
+    "AI 최신 모델 및 전망": "https://news.google.com/rss/search?q=AI+%EB%AA%A8%EB%8D%B8+%EC%B5%9C%EC%8B%A0+OR+AI+%EC%A0%84%EB%A1%9D&hl=ko&gl=KR&ceid=KR:ko",
+    "미국/한국 주식시장 예측": "https://news.google.com/rss/search?q=%EB%AF%B8%EA%B5%AD+%EC%A3%BC%EC%8B%9D%EC%8B%9C%EC%9E%A5+%EC%A0%84%EB%A1%9D+OR+%ED%95%9C%EA%B5%AD+%EC%A3%BC%EC%8B%9D%EC%8B%9C%EC%9E%A5+%EC%A0%84%EB%A1%9D&hl=ko&gl=KR&ceid=KR:ko",
+    "한미반도체/대덕전자 뉴스": "https://news.google.com/rss/search?q=%ED%95%9C%EB%AF%B8%EB%B0%98%EB%8F%84%EC%B2%B4+OR+%EB%8C%80%EB%8D%95%EC%A0%84%EC%9E%90&hl=ko&gl=KR&ceid=KR:ko"
 }
 
 def fetch_rss_news():
@@ -58,7 +57,7 @@ def fetch_rss_news():
             response.raise_for_status()
 
             feed = feedparser.parse(response.content)
-            entries = feed.entries[:5]  # 카테고리당 상위 5개 추출
+            entries = feed.entries[:4]  # 각 소스별 4개씩 수집
 
             for entry in entries:
                 news_data.append({
@@ -74,7 +73,7 @@ def fetch_rss_news():
     return news_data
 
 # ---------------------------------------------------------
-# 4. Gemini API 기반 뉴스 요약 및 인사이트 생성 (requests 활용)
+# 4. Gemini API 분석 및 요약 리포트 생성 (추가 요구사항 1~4번 전면 반영)
 # ---------------------------------------------------------
 def generate_summary_with_gemini(raw_news):
     if not raw_news:
@@ -87,31 +86,50 @@ def generate_summary_with_gemini(raw_news):
     news_context = "\n".join(news_text_list)
 
     prompt = f"""
-당신은 AI 및 주식 전문 수석 아날리스트입니다. 아래 제공된 최신 뉴스 소식들을 바탕으로 매일 아침 텔레그램으로 브리핑할 일일 보고서를 작성해주세요.
+당신은 AI 및 주식 분야 전문 수석 아날리스트입니다. 제공된 뉴스 데이터를 바탕으로 바쁜 현대인을 위해 최적화된 텔레그램 뉴스 브리핑 보고서를 작성하세요.
 
 [뉴스 데이터 목록]
 {news_context}
 
-[작성 가이드라인]
-1. 텔레그램 메시지용 HTML 포맷을 반드시 준수하세요. (허용 태그: <b>, <i>, <a>, <code>)
-2. 구분이 명확하도록 볼드와 가독성 높은 이모지를 적절히 사용해 강조하세요.
-3. 원본 뉴스를 볼 수 있는 <a> 태그(예: <a href="링크">▶ 원본 뉴스 보기</a>)를 각 뉴스 요약 끝에 반드시 포함하세요.
-4. 내용 구성 순서:
-   - <b>📌 오늘의 인사이트 (공통)</b>: 전체적인 기술/시장 트렌드를 관통하는 핵심 요약 (3~4줄)
-   - <b>🤖 [AI 분야]</b>
-     - AI 카테고리 인사이트 (2줄)
-     - 최신 AI 동향 & 데이터사이언스 주요 뉴스 3개 요약 (핵심 내용 + ▶ 원본 뉴스 보기)
-   - <b>📈 [주식 분야]</b>
-     - 주식 카테고리 인사이트 (2줄)
-     - 증시 전망 & 주요 개별종목(한미반도체/대덕전자 등) 주요 뉴스 3개 요약 (핵심 내용 + ▶ 원본 뉴스 보기)
+[필수 작성 및 구성 조건]
+1. 전체 메시지는 텔레그램 전용 HTML 태그(<b>, <i>, <a>, <code>)만 사용하세요.
+2. 카테고리는 아래 2개 구조로만 구성하세요:
+   - <b>🤖 1. AI 최신 모델 및 전망</b>
+   - <b>📈 2. 주식시장 전망</b>
+3. '2. 주식시장 전망' 내부에는 반드시 아래 2개 세부 주제를 포함하세요:
+   - <b>[가. 미국시장, 한국시장 주식시장 예측]</b>
+   - <b>[나. 한미반도체, 대덕전자 관련 주요 뉴스]</b>
+4. [핵심 조건] 각 2개 카테고리 상단에는 바쁜 사용자가 이것만 읽고 가도 주요 동향을 파악할 수 있도록 <b>'3~5줄 내외의 밀도 높은 인사이트'</b>를 작성하세요.
+5. [핵심 조건] 리포트 전체에 포함되는 뉴스는 <b>총 5~7개를 넘지 않도록 제한</b>하고, <b>중요성과 파급력이 높은 뉴스를 맨 위에 배치</b>하세요.
+6. 각 뉴스 요약 끝에는 반드시 원본 링크(<a href="링크">▶ 원본 뉴스 보기</a>)를 붙여주세요.
 
-HTML 태그 문법 오류가 없도록 닫는 태그를 정확히 작성해주세요.
+[출력 양식 예시]
+<b>📌 오늘의 인사이트 (공통)</b>
+(전체 시장/기술을 관통하는 총평 2~3줄)
+
+<b>🤖 1. AI 최신 모델 및 전망</b>
+💡 <b>AI 핵심 인사이트 (3~5줄)</b>: 
+(시간이 없을 때 이것만 보고 이해할 수 있도록 3~5줄 내외로 자세히 작성)
+
+• <b>뉴스 제목</b>: 핵심 내용 요약 <a href="링크">▶ 원본 뉴스 보기</a>
+
+<b>📈 2. 주식시장 전망</b>
+💡 <b>주식 핵심 인사이트 (3~5줄)</b>: 
+(시간이 없을 때 이것만 보고 이해할 수 있도록 3~5줄 내외로 자세히 작성)
+
+<b>[가. 미국시장, 한국시장 주식시장 예측]</b>
+• <b>뉴스 제목</b>: 핵심 내용 요약 <a href="링크">▶ 원본 뉴스 보기</a>
+
+<b>[나. 한미반도체, 대덕전자 관련 주요 뉴스]</b>
+• <b>뉴스 제목</b>: 핵심 내용 요약 <a href="링크">▶ 원본 뉴스 보기</a>
+
+HTML 닫는 태그(</b>, </a>) 문법 오류가 생기지 않도록 깔끔하게 검수하여 출력하세요.
 """
 
     gemini_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.3, "maxOutputTokens": 2540}
+        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 2540}
     }
 
     try:
@@ -124,21 +142,21 @@ HTML 태그 문법 오류가 없도록 닫는 태그를 정확히 작성해주�
         if candidates:
             return candidates[0]["content"]["parts"][0]["text"]
         else:
-            logger.warning("Gemini 응답에 내용이 없습니다.")
+            logger.warning("Gemini 응답 내용 없음.")
             return build_fallback_summary(raw_news)
     except Exception as e:
         logger.error(f"Gemini API 호출 오류: {e}")
         return build_fallback_summary(raw_news)
 
 def build_fallback_summary(raw_news):
-    """Gemini API 실패 시 원본 뉴스 리스트 기반 기본 메시지 생성"""
+    """Gemini API 오류 시 5~7개 제한 기본 메시지 생성"""
     lines = ["<b>📌 오늘의 주요 뉴스 브리핑 (기본 요약)</b>\n"]
-    for item in raw_news[:8]:
+    for item in raw_news[:6]:
         lines.append(f"• <b>[{item['category']}]</b> {item['title']}\n  <a href=\"{item['link']}\">▶ 원본 뉴스 보기</a>")
     return "\n\n".join(lines)
 
 # ---------------------------------------------------------
-# 5. 텔레그램 메시지 전송 (requests 활용 & 에러/길이 분할 처리)
+# 5. 텔레그램 메시지 전송 (4000자 분할 & HTML 오류 대처)
 # ---------------------------------------------------------
 def send_telegram_message(text):
     telegram_url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
