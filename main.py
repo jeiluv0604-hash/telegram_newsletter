@@ -3,6 +3,7 @@ import sys
 import logging
 import requests
 import feedparser
+from google import genai
 
 # ---------------------------------------------------------
 # 1. 로깅 설정
@@ -73,7 +74,7 @@ def fetch_rss_news():
     return news_by_category
 
 # ---------------------------------------------------------
-# 4. Gemini API 기반 뉴스별 줄간격 여백 극대화 리포트 생성
+# 4. Gemini SDK 기반 뉴스 요약 리포트 생성
 # ---------------------------------------------------------
 def generate_summary_with_gemini(news_by_category):
     formatted_context = ""
@@ -92,8 +93,8 @@ def generate_summary_with_gemini(news_by_category):
 [가독성 & 줄간격 규칙]
 1. 텔레그램 지원 HTML 태그만 사용 (<b>, <i>, <a>, <code>).
 2. 카테고리 구분선(───────────────────)을 활용하세요.
-3. [주식시장 전망] 인사이트는 반드시 **'📉 어제 증시 분석'**과 **'📈 오늘 증시 전망'**으로 분리하여 작성하세요.
-4. [핵심] 뉴스 항목과 뉴스 항목 사이에 빈 줄(한 줄 띄움)을 반드시 삽입하여 개별 뉴스 간에 시원한 여백을 확보하세요.
+3. [주식시장 전망] 인사이트는 반드시 '📉 어제 증시 분석'과 '📈 오늘 증시 전망'으로 분리하여 작성하세요.
+4. 뉴스 항목과 뉴스 항목 사이에 빈 줄(한 줄 띄움)을 반드시 삽입하여 개별 뉴스 간에 시원한 여백을 확보하세요.
 
 [출력 양식 예시]
 <b>📢 [오늘의 주요 뉴스 브리핑]</b>
@@ -112,9 +113,6 @@ def generate_summary_with_gemini(news_by_category):
 • <b>뉴스 제목 2 요약</b>
   <a href="링크">▶ 원본 뉴스 보기</a>
 
-• <b>뉴스 제목 3 요약</b>
-  <a href="링크">▶ 원본 뉴스 보기</a>
-
 ───────────────────
 
 <b>2. 주식시장 전망</b>
@@ -129,12 +127,6 @@ def generate_summary_with_gemini(news_by_category):
 • <b>뉴스 제목 1 요약</b>
   <a href="링크">▶ 원본 뉴스 보기</a>
 
-• <b>뉴스 제목 2 요약</b>
-  <a href="링크">▶ 원본 뉴스 보기</a>
-
-• <b>뉴스 제목 3 요약</b>
-  <a href="링크">▶ 원본 뉴스 보기</a>
-
 ───────────────────
 
 <b>3. 개별종목 분석 (대덕전자, 한미반도체)</b>
@@ -146,56 +138,37 @@ def generate_summary_with_gemini(news_by_category):
 
 • <b>뉴스 제목 1 요약</b>
   <a href="링크">▶ 원본 뉴스 보기</a>
-
-• <b>뉴스 제목 2 요약</b>
-  <a href="링크">▶ 원본 뉴스 보기</a>
-
-• <b>뉴스 제목 3 요약</b>
-  <a href="링크">▶ 원본 뉴스 보기</a>
 """
 
-    gemini_urls = [
-        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}",
-        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={GEMINI_API_KEY}",
-        f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={GEMINI_API_KEY}"
-    ]
-    
-    payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.2, "maxOutputTokens": 2540}
-    }
-
-    for gemini_url in gemini_urls:
-        try:
-            logger.info(f"Gemini API 호출 시도 중... ({gemini_url.split('/')[-1].split(':')[0]})")
-            res = requests.post(gemini_url, json=payload, timeout=30)
+    try:
+        logger.info("Gemini SDK를 통해 뉴스를 요약 중...")
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        
+        # 최신 모델 호출
+        response = client.models.generate_content(
+            model='gemini-2.5-flash',
+            contents=prompt,
+        )
+        
+        if response.text:
+            logger.info("Gemini API 분석 및 줄간격 적용 완료")
+            return response.text
             
-            if not res.ok:
-                logger.warning(f"Gemini API 응답 오류 [{res.status_code}]: {res.text}")
-                continue
+    except Exception as e:
+        logger.warning(f"Gemini API 호출 예외 발생: {e}")
 
-            data = res.json()
-            candidates = data.get("candidates", [])
-            if candidates and "parts" in candidates[0]["content"]:
-                result_text = candidates[0]["content"]["parts"][0]["text"]
-                logger.info("Gemini API 분석 및 줄간격 적용 완료")
-                return result_text
-        except Exception as e:
-            logger.warning(f"Gemini API 호출 예외: {e}")
-            continue
-
-    logger.error("Gemini API 호출 실패로 줄간격 강화 Fallback 메시지 생성")
+    logger.error("Gemini API 호출 실패로 Fallback 메시지 생성")
     return build_fallback_summary(news_by_category)
 
 def build_fallback_summary(news_by_category):
-    """Fallback 발생 시에도 각 뉴스 항목 사이 빈 줄(줄간격) 적용"""
+    """Fallback 발생 시에도 각 뉴스 항목 사이 빈 줄 적용"""
     output = [
         "<b>📢 [오늘의 주요 뉴스 브리핑]</b>",
         "───────────────────\n",
         
         "<b>1. AI 관련 뉴스</b>\n",
         "가. 💡 <b>인사이트</b>",
-        "글로벌 AI 시장은 차세대 멀티모달 모델 도입과 생성형 AI의 산업 현장 적용이 가속화되고 있습니다. 주요 빅테크들의 독자 모델 개발 경쟁이 격화되는 가운데 서비스 상용화 속도가 기업 가치를 좌우할 핵심 요소로 떠오르고 있습니다.\n",
+        "글로벌 AI 시장은 차세대 멀티모달 모델 도입과 생성형 AI의 산업 현장 적용이 가속화되고 있습니다.\n",
         "나. 📰 <b>주요 뉴스\n</b>"
     ]
     
@@ -207,8 +180,8 @@ def build_fallback_summary(news_by_category):
         "───────────────────\n",
         "<b>2. 주식시장 전망</b>\n",
         "가. 💡 <b>인사이트</b>\n",
-        "📉 <b>[어제 증시 분석]</b> 미 연준의 금리 향방 발표를 앞두고 관망세가 짙어진 가운데, 기술주 중심의 이익 실현 매물이 출회되며 증시 상단이 제약되었습니다.\n",
-        "📈 <b>[오늘 증시 전망]</b> 반도체 업종 중심의 실적 모멘텀이 유효한 만큼 하방 지지력이 형성될 전망이며, 기술주 수급 유입 여부가 오늘 지수 반등의 핵심 관전 포인트입니다.\n",
+        "📉 <b>[어제 증시 분석]</b> 주요 지수는 상단이 제한된 관망세 흐름을 보였습니다.\n",
+        "📈 <b>[오늘 증시 전망]</b> 반도체 및 핵심주 위주의 기술적 반등 여부가 관전 포인트입니다.\n",
         "나. 📰 <b>주요 뉴스\n</b>"
     ])
     
@@ -220,7 +193,7 @@ def build_fallback_summary(news_by_category):
         "───────────────────\n",
         "<b>3. 개별종목 분석 (대덕전자, 한미반도체)</b>\n",
         "가. 💡 <b>인사이트</b>",
-        "HBM 필수 고성능 장비(TC 본더) 시장을 독점 공급하는 한미반도체와 AI 서버용 high-end 기판(FC-BGA) 공급을 늘리는 대덕전자는 차세대 반도체 패키징 시장 확대에 따라 중장기적 수혜 흐름을 이어나갈 것으로 예상됩니다.\n",
+        "한미반도체와 대덕전자는 AI 반도체 생태계의 핵심 수혜주로서 기술적 모멘텀이 이어지고 있습니다.\n",
         "나. 📰 <b>주요 뉴스\n</b>"
     ])
     
