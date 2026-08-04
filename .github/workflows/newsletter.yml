@@ -2,8 +2,8 @@
 
     on:
       schedule:
-        # 매일 아침 07:00 KST (한국시간) = UTC 22:00 (전일)
-        - cron: '55 22 * * *'
+        # 매일 아침 06:55 KST (한국시간) = UTC 21:55 (전일)
+        - cron: '55 21 * * *'
       workflow_dispatch: # 수동 실행 지원
 
     jobs:
