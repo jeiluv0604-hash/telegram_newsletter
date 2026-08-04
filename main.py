@@ -37,11 +37,11 @@ def validate_env_vars():
         raise ValueError(err_msg)
 
 # ---------------------------------------------------------
-# 3. RSS 피드 수집 (검색어 포괄성 개선)
+# 3. RSS 피드 수집 (주식 분야 언론사 전용 피드로 교체하여 누락 방지)
 # ---------------------------------------------------------
 RSS_SOURCES = {
-    "AI 관련 뉴스": "https://news.google.com/rss/search?q=AI+%EA%B8%B0%EC%88%A0+OR+AI+%EB%AA%A8%EB%8D%B8&hl=ko&gl=KR&ceid=KR:ko",
-    "주식시장 전망": "https://news.google.com/rss/search?q=%EC%A3%BC%EC%8B%9D%EC%8B%9C%EC%9E%A5+OR+%EC%B2%A9%EC%8B%9C+%EC%A0%84%EB%A1%9D+OR+%EC%B2%A9%EC%8B%9C+%EC%A0%84%EB%A1%9D&hl=ko&gl=KR&ceid=KR:ko",
+    "AI 관련 뉴스": "https://news.google.com/rss/search?q=AI&hl=ko&gl=KR&ceid=KR:ko",
+    "주식시장 전망": "https://www.mk.co.kr/rss/50200011/",
     "개별종목 분석(대덕전자, 한미반도체)": "https://news.google.com/rss/search?q=%ED%95%9C%EB%AF%B8%EB%B0%98%EB%8F%84%EC%B2%B4+OR+%EB%8C%80%EB%8D%95%EC%A0%84%EC%9E%90&hl=ko&gl=KR&ceid=KR:ko"
 }
 
@@ -97,7 +97,7 @@ def generate_summary_with_gemini(news_by_category):
 1. 텔레그램 지원 HTML 태그만 사용 (<b>, <i>, <a>, <code>).
 2. 카테고리 구분선(───────────────────)을 활용하세요.
 3. [주식시장 전망] 인사이트는 반드시 '📉 어제 증시 분석'과 '📈 오늘 증시 전망'으로 분리하여 작성하세요.
-4. **수집 데이터에 제시된 뉴스 제목과 링크는 하나도 빠짐없이 📰 주요 뉴스 목록에 포함**해 주세요.
+4. **[핵심] 수집 데이터에 제시된 모든 카테고리의 뉴스 제목과 링크는 하나도 빠짐없이 📰 주요 뉴스 목록에 포함**해 주세요.
 5. 뉴스 항목과 뉴스 항목 사이에 빈 줄(한 줄 띄움)을 반드시 삽입하여 시원한 여백을 확보하세요.
 
 [출력 양식 예시]
@@ -129,6 +129,9 @@ def generate_summary_with_gemini(news_by_category):
 나. 📰 <b>주요 뉴스</b>
 
 • <b>뉴스 제목 1</b>
+  <a href="링크">▶ 원본 뉴스 보기</a>
+
+• <b>뉴스 제목 2</b>
   <a href="링크">▶ 원본 뉴스 보기</a>
 
 ───────────────────
