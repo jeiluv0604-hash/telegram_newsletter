@@ -2,8 +2,8 @@ name: Daily Telegram News Summary
 
 on:
   schedule:
-    # 매일 아침 06:47 KST (한국시간) = UTC 21:47 (전일)
-    - cron: '47 21 * * *'
+    # 오늘 10:47 KST (한국시간) 테스트 = UTC 01:47
+    - cron: '47 1 * * *'
   workflow_dispatch: # 수동 실행 지원
 
 jobs:
