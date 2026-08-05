@@ -1,35 +1,35 @@
-    name: Daily Telegram News Summary
+name: Daily Telegram News Summary
 
-    on:
-      schedule:
-        # 매일 아침 06:55 KST (한국시간) = UTC 21:55 (전일)
-        - cron: '55 21 * * *'
-      workflow_dispatch: # 수동 실행 지원
+on:
+  schedule:
+    # 매일 아침 06:47 KST (한국시간) = UTC 21:47 (전일)
+    - cron: '47 21 * * *'
+  workflow_dispatch: # 수동 실행 지원
 
-    jobs:
-      run-news-bot:
-        runs-on: ubuntu-latest
+jobs:
+  run-news-bot:
+    runs-on: ubuntu-latest
 
-        steps:
-          - name: Checkout Repository
-            uses: actions/checkout@v4  # 최신 v4 버전으로 업데이트
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-          - name: Set up Python
-            uses: actions/setup-python@v5  # 최신 v5 버전으로 업데이트
-            with:
-              python-version: '3.11'
-              cache: 'pip'
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
 
-          - name: Install Dependencies
-            run: |
-              python -m pip install --upgrade pip
-              pip install -r requirements.txt
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
 
-          - name: Run Daily News Bot
-            env:
-              TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || secrets.TELEGRAM_TOKEN }}
-              TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN || secrets.TELEGRAM_BOT_TOKEN }}
-              TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-              GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-            run: |
-              python main.py
+      - name: Run Daily News Bot
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN || secrets.TELEGRAM_TOKEN }}
+          TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN || secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        run: |
+          python main.py
